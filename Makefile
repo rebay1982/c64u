@@ -2,6 +2,7 @@
 
 MAKEFLAGS += --silent
 
+HOST ?= 192.168.0.1
 PROJECT ?= helloworld
 PRJ_PATH ?= ./$(PROJECT)
 TOOLS_PATH ?= /usr/bin
@@ -30,4 +31,6 @@ build: validate_project
 run: build
 	$(TOOLS_PATH)/x64sc -autostart $(PRJ_PATH)/build/$(PROJECT).prg
 
+c64u: build
+	./tools/remote_prg.sh $(HOST) $(PRJ_PATH)/build/$(PROJECT).prg | jq .
 
