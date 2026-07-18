@@ -1,0 +1,20 @@
+  ; **********************
+  ; ODD OR EVEN EVALUATION
+  ; **********************
+*= $C000
+
+  lda #7
+	sta $FB
+	lda #0
+	sta $FD
+	lda $FB
+	lsr
+	sta $FC
+
+	bcs flag
+	rts
+
+flag:
+  rol $FD
+	rts
+

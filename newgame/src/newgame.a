@@ -1,0 +1,16 @@
+; Scratch pad for testing stuff
+
+	*= $C000
+
+start:
+	; Shift left example
+	lda #$08
+	asl         ; Operates directly on the accumulator
+	sta $FB
+
+	; shift right example
+	lda $FB
+	lsr
+	sta $FC
+
+	rts
