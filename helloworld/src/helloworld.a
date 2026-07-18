@@ -1,22 +1,55 @@
-	; *******************
-	; HELLO WORLD EXAMPLE
-	; *******************
-
+	; *******************************
+	; Prints "YOUR MISSON STARTS NOW"
+	; *******************************
 	*= $C000
-	jmp begin
+	endline = 13
+	buffer  = 40
+	space   = $20
 
-text: 
-	!byte 76,69,84,83,32,67,79,68,69
-	!byte 32,73,78,32,65,83,83,69,77
-	!byte 66,76,89
+	jmp start
 
-begin:
+text:
+	!byte $59, $4F, $55, $52, $20, $4D, $49, $53
+	!byte $53, $49, $4F, $4E, $20, $53, $54, $41
+	!byte $52, $54, $53, $20, $4E, $4F, $57, $0D
+
+start:
+	lda #space
+	ldx #buffer
+
+clearloop:              ; Essentially sets every byte of the buffer to $20
+	dex                   ; Sets the zero flag if results in X = 0
+	sta textbuffer,X
+	bne clearloop         ; Loop while the zero flag is not set.
+
 	ldx #0
 
-loop:
+loop1:
 	lda text,X
+	sta textbuffer,X
+	cmp #endline
+	beq print
+	inx
+	cpx #buffer
+	bcc loop1
+
+print:
+	ldx #0
+
+loop2:
+	lda textbuffer,X
+	pha
 	jsr $FFD2
-	inx	
-	cpx #21
-	bne loop
+	pla
+	cmp #endline
+	beq endprogram
+	inx
+	cpx #buffer
+	bcc loop2
+
+endprogram:
 	rts
+
+	textbuffer = *
+	*= * + buffer
+end:
