@@ -34,3 +34,5 @@ run: build
 c64u: build
 	./tools/remote_prg.sh $(HOST) $(PRJ_PATH)/build/$(PROJECT).prg | jq .
 
+xxd: build
+	$(TOOLS_PATH)/xxd $(PRJ_PATH)/build/$(PROJECT).prg

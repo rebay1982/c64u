@@ -1,0 +1,58 @@
+;   ; **************************
+; 	; 8-bit addition with carry
+;   ; **************************
+; 	;
+;*= $C000
+;result = $FA
+;
+;	cld           ; Clear decimal mode
+;	clc
+;	lda #$A7
+;	adc #$D5
+;
+;	sta result    ; Store the result of the addition into $FA
+;
+;	lda #0        ; clear A and load the carry flag into it, store it in $FB
+;	rol
+;	sta result+1
+;
+;	rts
+
+
+;	; **************************
+;	; 16-bit addition with carry
+;	; **************************
+;*= $C000
+;
+;	clc
+;
+;	lda #$FB
+;	adc #$FD
+;	sta $02A7
+;
+;	lda #$FC
+;	adc #$FE
+;
+;	sta $02A8
+;	rol $02A9 ; Note, the carry is set, but we're not storing it because we're doing 16bit math. This lossy. This stores
+;	          ; the carry bit in the next memory address, effectively storing the result on 24bits.
+;	rts
+;
+
+; ******************************
+; 16-bit substraction with carry
+; ******************************
+
+*= C000
+	cld
+	sec
+
+	lda #$FD
+	sbc #$FB
+	sta $02A7
+
+	lda #$FE
+	sbc #$FC
+	sta $02A8
+
+	rts
