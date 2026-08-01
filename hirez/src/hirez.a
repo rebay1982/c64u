@@ -1,0 +1,488 @@
+; -----------------------------------------------------------------------------
+; High Resolution Bitmap Demo
+; ACME assembler version
+;
+; Assembles to a C64 PRG loaded at $C000.
+; Run from BASIC with:
+;
+;     SYS 49152
+;
+; The program:
+;   - selects VIC bank 0
+;   - enables hi-res bitmap mode
+;   - clears the bitmap at $2000
+;   - fills screen RAM at $0400 with $10
+;   - draws horizontal and vertical lines through the screen center
+; -----------------------------------------------------------------------------
+
+* = $8000
+; -----------------------------------------------------------------------------
+; Constants and workspace
+; -----------------------------------------------------------------------------
+
+; Color: See page 198, figure 11.3 -- high nibble == FG color, low nibble == BG color.
+color  = $10               ; Color value for screen/color map
+base   = $2000             ; Base address of hi-res bitmap (8000 bytes)
+scroly = $d011             ; VIC-II control register 1
+vmcsb  = $d018             ; VIC-II memory control register
+colmap = $0400             ; Screen/color map address (1000 bytes)
+
+hmax   = 320                ; Horizontal resolution
+vmax   = 200                ; Vertical resolution
+hmid   = 160                ; Horizontal center
+vmid   = 100                ; Vertical center
+
+scrlen = 8000               ; Bitmap size: 320 * 200 / 8
+maplen = 1000               ; Screen map size: 40 * 25
+
+tempa  = $fb                ; Zero-page temporary/pointer A: $fb/$fc
+tempb  = tempa + 2          ; Zero-page temporary/pointer B: $fd/$fe
+tabptr = tempa              ; Memory-block pointer used by blkfil
+
+; $9000 is part of the free ram mapping.
+tabsiz = $9000              ; Block size for blkfil: $9000/$9001
+hpsn   = tabsiz + 2         ; Horizontal pixel position: $9002/$9003
+vpsn   = hpsn + 2           ; Vertical pixel position: $9004
+char   = vpsn + 1           ; Character column: $9005
+row    = char + 1           ; Character row: $9006
+line   = row + 1            ; Pixel line within character cell: $9007
+byte   = line + 1           ; Byte offset within bitmap row: $9008/$9009
+bitt   = byte + 2           ; Bit position within byte: $900a
+
+mprl   = bitt + 1           ; Multiplier low byte: $900b
+mprh   = mprl + 1           ; Multiplier high byte: $900c
+mpdl   = mprh + 1           ; Multiplicand low byte: $900d
+mpdh   = mpdl + 1           ; Multiplicand high byte: $900e
+prodl  = mpdh + 1           ; Product low byte: $900f
+prodh  = prodl + 1          ; Product high byte: $9010
+
+filval = prodh + 1          ; Fill value used by blkfil: $9011
+jsv    = filval + 1         ; Unused jump-save vector: $9012
+
+cxlo   = jsv + 1            ; Cursor X position low byte
+cxhi   = cxlo + 1           ; Cursor X postition high byte
+cy     = cxhi + 1           ; Cursor Y position 0 to 199
+joy2   = $dc00              ; Joystick port 2 register
+
+; -----------------------------------------------------------------------------
+; Program entry point
+; -----------------------------------------------------------------------------
+
+* = $c000
+
+        jmp start
+
+; -----------------------------------------------------------------------------
+; blkfil
+;
+; Fill a block of memory.
+;
+; Inputs:
+;   tabptr  = destination pointer
+;   tabsiz  = 16-bit byte count
+;   filval  = byte value
+; -----------------------------------------------------------------------------
+
+blkfil:
+        lda filval
+        ldx tabsiz + 1
+        beq partpg            ; if x == 0 (MSB of 16bit value), jump to partpg -- only doing 255bytes.
+        ldy #0
+
+fullpg:
+        sta (tabptr),y
+        iny
+        bne fullpg
+        inc tabptr + 1
+        dex
+        bne fullpg
+
+partpg:
+        ldx tabsiz
+        beq fini
+        ldy #0
+
+partlp:
+        sta (tabptr),y
+        iny
+        dex
+        bne partlp
+
+fini:
+        rts
+
+; -----------------------------------------------------------------------------
+; mult16
+;
+; Unsigned 16-bit multiplication.
+;
+; Inputs:
+;   mprl/mprh = multiplier
+;   mpdl/mpdh = multiplicand
+;
+; Output:
+;   mprl/mprh = product
+; -----------------------------------------------------------------------------
+
+mult16:
+        lda #0
+        sta prodl
+        sta prodh
+        ldx #17
+
+mult:
+        clc
+        ror prodh
+        ror prodl
+        ror mprh
+        ror mprl
+        bcc ctdown
+
+        clc
+        lda mpdl
+        adc prodl
+        sta prodl
+        lda mpdh
+        adc prodh
+        sta prodh
+
+ctdown:
+        dex
+        bne mult
+        rts
+
+; -----------------------------------------------------------------------------
+; plot
+;
+; Set one pixel in the hi-res bitmap.
+;
+; Inputs:
+;   hpsn = X coordinate, 0..319
+;   vpsn = Y coordinate, 0..199
+; -----------------------------------------------------------------------------
+
+plot:
+        ; row = y / 8
+        lda vpsn
+        lsr
+        lsr
+        lsr               ; lshift x3 == / 8
+        sta row
+
+        ; char = x / 8
+        lda hpsn
+        sta tempa
+        lda hpsn + 1
+        sta tempa + 1
+        ldx #3
+
+; x (16bit) division loop.
+dloop:
+        lsr tempa + 1
+        ror tempa
+        dex
+        bne dloop
+; done /8 loop
+
+        lda tempa
+        sta char
+
+        ; line = y & 7
+        lda vpsn
+        and #7
+        sta line
+
+        ; bitt = 7 - (x & 7)
+        lda hpsn
+        and #7
+        sta bitt
+
+        sec
+        lda #7
+        sbc bitt
+        sta bitt
+
+        ; tempa = base + row * 320
+        lda row
+        sta mprl
+        lda #0
+        sta mprh
+
+        lda #<hmax
+        sta mpdl
+        lda #>hmax
+        sta mpdh
+
+        jsr mult16
+
+        lda mprl
+        sta tempa
+        lda mprh
+        sta tempa + 1
+
+        clc
+        lda #<base
+        adc tempa
+        sta tempa
+        lda #>base
+        adc tempa + 1
+        sta tempa + 1
+
+        ; tempb = char * 8
+        lda #8
+        sta mprl
+        lda #0
+        sta mprh
+
+        lda char
+        sta mpdl
+        lda #0
+        sta mpdh
+
+        jsr mult16
+
+        lda mprl
+        sta tempb
+        lda mprh
+        sta tempb + 1
+
+        ; tempb = char * 8 + line
+        clc
+        lda tempb
+        adc line
+        sta tempb
+        lda tempb + 1
+        adc #0
+        sta tempb + 1
+
+        ; tempb = base + row * 320 + char * 8 + line
+        clc
+        lda tempa
+        adc tempb
+        sta tempb
+        lda tempa + 1
+        adc tempb + 1
+        sta tempb + 1
+
+        ; Generate mask 1 << bitt
+        ldx bitt
+        inx
+        lda #0
+        sec
+
+square:
+        rol
+        dex
+        bne square
+
+        ; Set pixel
+        ldy #0
+        ora (tempb),y
+        sta (tempb),y
+        rts
+
+; -----------------------------------------------------------------------------
+; Main program
+; -----------------------------------------------------------------------------
+
+start:
+        ; Screen RAM at $0400, bitmap at $2000
+        lda #$18
+        sta vmcsb
+
+        ; Enable bitmap mode
+        lda scroly
+        ora #$20
+        sta scroly
+
+        ; Configure CIA2 port A bits 0-1 as outputs
+        lda $dd02
+        ora #$03
+        sta $dd02
+
+        ; Select VIC bank 0: $0000-$3fff
+        lda $dd00
+        ;and #$fc -- See https://codeberg.org/c64oldstories/Assembly-for-C64/issues/1
+				ora #$03
+        sta $dd00
+
+        ; Clear bitmap memory
+        lda #0
+        sta filval
+
+        lda #<base		; Store low-byte of base in A
+        sta tabptr
+        lda #>base		; Store the high-byte of base in A
+        sta tabptr + 1
+
+        lda #<scrlen
+        sta tabsiz
+        lda #>scrlen
+        sta tabsiz + 1
+
+        jsr blkfil
+
+        ; Fill screen RAM with the selected foreground/background colors
+        lda #color
+        sta filval
+
+        lda #<colmap
+        sta tabptr
+        lda #>colmap
+        sta tabptr + 1
+
+        lda #<maplen
+        sta tabsiz
+        lda #>maplen
+        sta tabsiz + 1
+
+        jsr blkfil
+
+        ; Draw horizontal line at y = vmid
+        lda #vmid
+        sta vpsn
+
+				; Horizontal is on two bytes: screen is 320 pixels wide.
+        lda #0
+        sta hpsn
+        sta hpsn + 1
+
+agin:
+        jsr plot
+
+				; If overflowed, it's because we've went beyond 256 pixels, increment MSB and move on.
+        inc hpsn
+        bne next
+        inc hpsn + 1
+
+next:
+				; ------ THIS CODE BLOCK CHECKS IF WE'RE BEYOND THE 320 HPSN LIMIT. IF NOW, JUMP TO AGAIN.
+				; pull in the high byte of hpsn, compare it to the high byte of 320 and if it isn't larger, do it again.
+        lda hpsn + 1
+        cmp #>hmax
+        bcc agin
+
+				; pull in the low byte of hpsn, compare it to the low byte of 320 and if it isn't larger, do it again.
+        lda hpsn
+        cmp #<hmax
+        bcc agin
+
+        ; Draw vertical line at x = hmid
+        lda #0
+        sta vpsn
+
+point:
+        lda #<hmid
+        sta hpsn
+        lda #>hmid
+        sta hpsn + 1
+
+        jsr plot
+
+        inc hpsn
+        bne skip
+        inc hpsn + 1
+
+skip:
+        jsr plot
+
+        ldx vpsn
+        inx
+        stx vpsn
+
+        cpx #vmax
+        bcc point
+
+; curosr starts at center
+        lda #<hmid
+				sta cxlo
+        lda #>hmid
+				sta cxhi
+				lda #vmid
+				sta cy
+
+; Main loop
+; Read joystick and draw
+; Sync to 50Hz raster
+mainlp:
+        jsr waitfr
+; Update cursor position
+        jsr movecur
+; Copy X to hpsn
+        lda cxlo
+				sta hpsn
+				lda cxhi
+				sta hpsn + 1
+; Copy Y to vpsn
+        lda cy
+				sta vpsn
+; Draw current pixel
+        jsr plot
+				jmp mainlp
+
+; WAITFR -- Wait for raster interrupt ?
+; Wait for raster $ff
+waitfr:
+        lda $d012
+				cmp #$ff
+				bne waitfr
+				rts
+
+; MOVECUR
+; Read joy2 and move dot
+; Bit 0=up, 1=down
+; Bit 2=left, 3=right
+; Active low: 0 = pressed
+movecur:
+        lda joy2
+        lsr            ; Check if bit 0 is 0 (active low)
+				bcs notup
+
+        lda cy         ; collision check: cy cannot be < 0
+				beq notup
+				dec cy
+
+notup:
+        lda joy2       ; Check if down is set.
+        and #%00000010
+				bne notdn
+
+        lda cy
+				cmp #vmax - 1
+				beq notdn
+				inc cy
+
+notdn:
+        lda joy2        ; Check if left is set.
+        and #%00000100
+				bne notlf
+
+				lda cxlo        ; If it is, decrement 16bit value cxhi|cxlo
+				bne decx
+        lda cxhi
+				beq notlf
+				dec cxhi
+
+decx:
+        dec cxlo
+
+notlf:
+        lda joy2        ; Finally, check the right.
+				and #%00001000
+				bne notrt
+
+        lda cxhi        ; Check if we've reached hmax - 1
+				cmp #>319
+				bcc dortx
+
+				lda cxlo
+				cmp #<319
+				bcs notrt
+
+dortx:
+        inc cxlo
+				bne notrt
+				inc cxhi
+
+notrt:
+        rts
