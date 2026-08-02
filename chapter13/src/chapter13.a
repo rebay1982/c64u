@@ -1,0 +1,75 @@
+
+
+
+* = $C000
+
+; Set CIA2 data direction register as outputs to select the correct bank
+	lda $dd02
+	ora #$03
+	sta $dd02
+
+; For uppercase and graphics mode. Equivalent to BASIC PRINT CHR$(142)
+	lda #142
+	jsr $ffd2
+
+; Clear the screen. Equivalent to BASIC PRINT CHR$(147): Is its own routine specifically for this.
+	jsr $e544
+
+; Reserve RAM $3000 -- Make sure BASIC doesn't use anything lower.
+	lda #$30
+	sta $0034
+	sta $0038
+
+; Temporarily disable interrupts
+	sei
+
+; Make character ROM visible at $D000
+	lda $0001
+	and #$fb
+	sta $0001
+
+; Set source and destination pointers.
+; $fb, $fc: source 16bit pointer.
+; $fd, $fe: destination 16bit pointer.
+	lda #$00
+	sta $fb
+	lda #$d0
+	sta $fc
+
+	lda #$00
+	sta $fd
+	lda #$30
+	sta $fe
+
+; Actually copy from source to destination.
+	ldx #$10
+
+copypg:
+	ldy #$00
+
+copybt:
+	lda ($fb),y
+	sta ($fd),y
+	iny
+	bne copybt          ; If no overflow, we're not done.
+
+	inc $fc
+	inc $fe
+	dex
+	bne copypg          ; If X==0, we've done all pages.
+
+; Restore the normal memory map
+	lda $0001
+	ora #$04
+	sta $0001
+
+
+; Re-enable interrupts
+	cli
+
+; Point VIC-II to the new character set.
+  lda $d018
+	and #$f0
+	ora #$0c
+	sta $d018
+

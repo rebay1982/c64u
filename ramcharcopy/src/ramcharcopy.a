@@ -1,0 +1,121 @@
+; ***********
+; ramcharcopy
+; ***********
+r6510  = $0001                 ; R6510 I/O port register
+newadr = $3000                 ; RAM destination for character set
+chrbas = $d000                 ; Character ROM base address
+ciacre = $dc0e                 ; CIA 1 control register A
+c2ddra = $dd02                 ; CIA 2 data direction register A
+vmcsb  = $d018                 ; VIC-II memory control register
+chrout = $ffd2                 ; KERNAL character output routine
+clrscr = $e544                 ; KERNAL clear screen routine
+
+chara = newadr+$08             ; Character A position
+charb = newadr+$10             ; Character B position
+charc = newadr+$18             ; Character C position
+chard = newadr+$20             ; Character D position
+chare = newadr+$28             ; Character E position
+charf = newadr+$30             ; Character F position
+charg = newadr+$38             ; Character G position
+charh = newadr+$40             ; Character H position
+chari = newadr+$48             ; Character I position
+
+; basic pointers
+fretop = $0034                 ; Top of BASIC memopry (high-byte)
+memsiz = $0038                 ; Size of BASIC memory (high byte)
+
+tablen = $1000                 ; Length of the character set (4096 bytes)
+mvsrce = $fb                   ; Move source pointer (low-byte)
+mvdest = mvsrce+2              ; Move destination pointer (low-byte)
+
+lenptr = $0200                 ; Block length pointer.
+
+* = $c000
+
+ramcharcopy:
+; Set CIA2 data direction register as outputs to select the correct bank
+	lda c2ddra
+	ora #$03
+	sta c2ddra
+
+; For uppercase and graphics mode. Equivalent to BASIC PRINT CHR$(142)
+; Clear the screen. Equivalent to BASIC PRINT CHR$(147): Is its own routine specifically for this.
+	lda #142
+	jsr chrout
+	jsr clrscr
+
+; Reserve RAM $3000 -- Make sure BASIC doesn't use anything lower.
+	lda #$30
+	sta fretop
+	sta memsiz
+; Turn off keyboard interrupt timer
+	lda ciacre
+	and #$fe
+	sta ciacre
+
+; Switch I/O off, char ROM on
+	lda r6510
+	and #$fb
+	sta r6510
+
+; Set source pointer
+	lda #<chrbas
+	sta mvsrce
+	lda #>chrbas
+	sta mvsrce + 1
+
+; Set destination pointer
+	lda #<newadr
+	sta mvdest
+	lda #>newadr
+	sta mvdest + 1
+
+; Set block length
+	lda #<tablen
+	sta lenptr
+	lda #>tablen
+	sta lenptr + 1
+
+; Start block copy
+	ldy #0
+	ldx lenptr + 1
+	beq mvpart
+
+mvpage:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	bne mvpage
+	inc mvsrce + 1
+	inc mvdest + 1
+	dex
+	bne mvpage
+
+mvpart:
+	ldx lenptr
+	beq mvexit
+
+mvlast:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	dex
+	bne mvlast
+
+mvexit:
+; Switch I/O back in
+	lda r6510
+	ora #04
+	sta r6510
+; Turn keyboard back on
+	lda ciacre
+	ora #01
+	sta ciacre
+; Set VIC-II memory control register
+	lda vmcsb
+	and #$f0
+	ora #$0c
+	sta vmcsb
+
+end:
+	rts
