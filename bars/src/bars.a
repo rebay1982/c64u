@@ -1,0 +1,248 @@
+* = $c000
+	jmp main
+
+; ***********
+; ramcharcopy
+; Makes a copy of the Char ROM to memory RAM location $3000
+; ***********
+r6510  = $0001                 ; R6510 I/O port register
+newadr = $3000                 ; RAM destination for character set
+chrbas = $d000                 ; Character ROM base address
+ciacre = $dc0e                 ; CIA 1 control register A
+c2ddra = $dd02                 ; CIA 2 data direction register A
+vmcsb  = $d018                 ; VIC-II memory control register
+chrout = $ffd2                 ; KERNAL character output routine
+clrscr = $e544                 ; KERNAL clear screen routine
+
+chara = newadr+$08             ; Character A position
+
+; basic pointers
+fretop = $0034                 ; Top of BASIC memopry (high-byte)
+memsiz = $0038                 ; Size of BASIC memory (high byte)
+
+tablen = $1000                 ; Length of the character set (4096 bytes)
+mvsrce = $fb                   ; Move source pointer (low-byte)
+mvdest = mvsrce+2              ; Move destination pointer (low-byte)
+
+lenptr = $0200                 ; Block length pointer.
+
+charscr = $0770                ; character screen buffer address
+charptr = $FB
+scrskip = $FD
+
+ramcharcopy:
+; Set CIA2 data direction register as outputs to select the correct bank
+	lda c2ddra
+	ora #$03
+	sta c2ddra
+
+; For uppercase and graphics mode. Equivalent to BASIC PRINT CHR$(142)
+; Clear the screen. Equivalent to BASIC PRINT CHR$(147): Is its own routine specifically for this.
+	lda #142
+	jsr chrout
+	jsr clrscr
+
+; Reserve RAM $3000 -- Make sure BASIC doesn't use anything lower.
+	lda #$30
+	sta fretop
+	sta memsiz
+; Turn off keyboard interrupt timer
+	lda ciacre
+	and #$fe
+	sta ciacre
+
+; Switch I/O off, char ROM on
+	lda r6510
+	and #$fb
+	sta r6510
+
+; Set source pointer
+	lda #<chrbas
+	sta mvsrce
+	lda #>chrbas
+	sta mvsrce + 1
+
+; Set destination pointer
+	lda #<newadr
+	sta mvdest
+	lda #>newadr
+	sta mvdest + 1
+
+; Set block length
+	lda #<tablen
+	sta lenptr
+	lda #>tablen
+	sta lenptr + 1
+
+; Start block copy
+	ldy #0
+	ldx lenptr + 1
+	beq mvpart
+
+mvpage:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	bne mvpage
+	inc mvsrce + 1
+	inc mvdest + 1
+	dex
+	bne mvpage
+
+mvpart:
+	ldx lenptr
+	beq mvexit
+
+mvlast:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	dex
+	bne mvlast
+
+mvexit:
+; Switch I/O back in
+	lda r6510
+	ora #04
+	sta r6510
+; Turn keyboard back on
+	lda ciacre
+	ora #01
+	sta ciacre
+; Set VIC-II memory control register
+	lda vmcsb
+	and #$f0
+	ora #$0c
+	sta vmcsb
+
+ramcharcopy_end:
+	rts
+
+;********************************
+; Copy custom graphics into chars
+;********************************
+cpychar:
+	; Setup source and destination pointers
+	lda #<chartab
+	sta mvsrce
+	lda #>chartab
+	sta mvsrce + 1
+
+	lda #<chara
+	sta mvdest
+	lda #>chara
+	sta mvdest + 1
+
+	ldx #1                        ; Copy x characters, 8 bytes each
+cpychar_charloop:
+	ldy #0
+cpychar_byteloop:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	cpy #8
+	bne cpychar_byteloop
+
+	; Advance source pointer by 8 to move to the next character.
+	clc
+	lda mvsrce
+	adc #8
+	sta mvsrce
+	bcc cpychar_nocarry1
+	inc mvsrce + 1
+
+cpychar_nocarry1:
+	clc
+	lda mvdest
+	adc #8
+	sta mvdest
+	bcc cpychar_nocarry2
+	inc mvdest + 1
+
+cpychar_nocarry2:
+	dex
+	bne cpychar_charloop
+
+cpychar_end:
+	rts
+
+; ******************
+; Main program entry
+; ******************
+main:
+	jsr ramcharcopy
+	jsr cpychar
+
+; CREATE ROUTINE TO FILL SCREEN WITH BARS.
+	jsr drawinitscreen
+	;jsr drawinitscreen_kernal
+
+	rts
+
+; ************************************************************
+; Draw init screen initializes the initial screen presentation
+; ************************************************************
+scrwidth = $28                  ; Screen width: 40 tiles
+scrheight = $03                 ; Screen height: 04 tiles
+;scrskip = $01
+a_char = $01
+drawinitscreen:
+	; Setup character screen memory pointer
+	lda #<charscr
+	sta charptr
+	lda #>charscr
+	sta charptr+1
+
+	; Setup screen skip
+	lda #$03
+	sta scrskip
+
+	ldx #scrheight
+
+drawinitscreen_loop_x:
+	ldy #$0
+
+drawinitscreen_loop_y:
+	tya
+	and scrskip
+	bne drawinitscreen_skip
+
+	lda #a_char					          ; Char screen code for A
+	sta (charptr),y
+
+drawinitscreen_skip:
+	iny
+	cpy #scrwidth
+	bne drawinitscreen_loop_y
+
+	; Update character pointer to the next row
+	clc
+	lda charptr
+	adc #scrwidth
+	sta charptr
+	lda charptr+1
+	adc #$0
+	sta charptr+1
+
+	; Adjus screen skip
+	clc
+	ror scrskip
+
+	dex
+	bne drawinitscreen_loop_x 
+
+	rts
+
+;----------------------------
+; Block
+;----------------------------
+chartab:
+	; Block #0
+	!byte %11111111
+	!byte %10000001
+	!byte %10000001
+	!byte %10011001
+	!byte %10011001
+	!byte %10000001
+	!byte %10000001
+	!byte %11111111
