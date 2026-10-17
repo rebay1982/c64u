@@ -137,7 +137,7 @@ cpychar:
 	lda #>chara
 	sta mvdest + 1
 
-	ldx #9                        ; Copy 9 characters, 8 bytes each
+	ldx #1                        ; Copy x characters, 8 bytes each
 cpychar_charloop:
 	ldy #0
 cpychar_byteloop:
@@ -177,32 +177,14 @@ main:
 	jsr ramcharcopy
 	jsr cpychar
 
-	; Print out ABC to screen.
+; CREATE ROUTINE TO FILL SCREEN WITH BARS.
+
+	; Print out AAA to screen.
 	lda #65
 	jsr chrout
-	lda #66
+	lda #65
 	jsr chrout
-	lda #67
-	jsr chrout
-	lda #13
-	jsr chrout
-
-	; Print out DEF to screen.
-	lda #68
-	jsr chrout
-	lda #69
-	jsr chrout
-	lda #70
-	jsr chrout
-	lda #13
-	jsr chrout
-
-	; Print out GHI to screen.
-	lda #71
-	jsr chrout
-	lda #72
-	jsr chrout
-	lda #73
+	lda #65
 	jsr chrout
 	lda #13
 	jsr chrout
@@ -214,87 +196,7 @@ main:
 ;----------------------------
 chartab:
 
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
-	!byte %00000000
-	!byte %01111110
-	!byte %01111110
-	!byte %01100110
-	!byte %01100110
-	!byte %01111110
-	!byte %01111110
-	!byte %00000000
-
-	; a top left
+	; Block #1
 	!byte %00000000
 	!byte %01111110
 	!byte %01111110
