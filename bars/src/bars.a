@@ -125,11 +125,11 @@ ramcharcopy_end:
 ;********************************
 ; Copy custom graphics into chars
 ;********************************
-cpyghost:
+cpychar:
 	; Setup source and destination pointers
-	lda #<ghostab
+	lda #<chartab
 	sta mvsrce
-	lda #>ghostab
+	lda #>chartab
 	sta mvsrce + 1
 
 	lda #<chara
@@ -138,36 +138,36 @@ cpyghost:
 	sta mvdest + 1
 
 	ldx #9                        ; Copy 9 characters, 8 bytes each
-cpyghost_charloop:
+cpychar_charloop:
 	ldy #0
-cpyghost_byteloop:
+cpychar_byteloop:
 	lda (mvsrce),y
 	sta (mvdest),y
 	iny
 	cpy #8
-	bne cpyghost_byteloop
+	bne cpychar_byteloop
 
 	; Advance source pointer by 8 to move to the next character.
 	clc
 	lda mvsrce
 	adc #8
 	sta mvsrce
-	bcc cpyghost_nocarry1
+	bcc cpychar_nocarry1
 	inc mvsrce + 1
 
-cpyghost_nocarry1:
+cpychar_nocarry1:
 	clc
 	lda mvdest
 	adc #8
 	sta mvdest
-	bcc cpyghost_nocarry2
+	bcc cpychar_nocarry2
 	inc mvdest + 1
 
-cpyghost_nocarry2:
+cpychar_nocarry2:
 	dex
-	bne cpyghost_charloop
+	bne cpychar_charloop
 
-cpyghost_end:
+cpychar_end:
 	rts
 
 ; ******************
@@ -175,7 +175,7 @@ cpyghost_end:
 ; ******************
 main:
 	jsr ramcharcopy
-	jsr cpyghost
+	jsr cpychar
 
 	; Print out ABC to screen.
 	lda #65
@@ -209,3 +209,97 @@ main:
 
 	rts
 
+;----------------------------
+; Block
+;----------------------------
+chartab:
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
+
+	; a top left
+	!byte %00000000
+	!byte %01111110
+	!byte %01111110
+	!byte %01100110
+	!byte %01100110
+	!byte %01111110
+	!byte %01111110
+	!byte %00000000
