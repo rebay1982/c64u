@@ -15,14 +15,6 @@ chrout = $ffd2                 ; KERNAL character output routine
 clrscr = $e544                 ; KERNAL clear screen routine
 
 chara = newadr+$08             ; Character A position
-charb = newadr+$10             ; Character B position
-charc = newadr+$18             ; Character C position
-chard = newadr+$20             ; Character D position
-chare = newadr+$28             ; Character E position
-charf = newadr+$30             ; Character F position
-charg = newadr+$38             ; Character G position
-charh = newadr+$40             ; Character H position
-chari = newadr+$48             ; Character I position
 
 ; basic pointers
 fretop = $0034                 ; Top of BASIC memopry (high-byte)
@@ -178,16 +170,21 @@ main:
 	jsr cpychar
 
 ; CREATE ROUTINE TO FILL SCREEN WITH BARS.
+	jsr drawinitscreen
 
-	; Print out AAA to screen.
+	rts
+
+; ************************************************************
+; Draw init screen initializes the initial screen presentation
+; ************************************************************
+drawinitscreen:
+	ldx #$28
+
+drawinitscreen_loop:
 	lda #65
 	jsr chrout
-	lda #65
-	jsr chrout
-	lda #65
-	jsr chrout
-	lda #13
-	jsr chrout
+	dex
+	bne drawinitscreen_loop
 
 	rts
 
