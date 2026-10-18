@@ -171,6 +171,7 @@ main:
 
 ; CREATE ROUTINE TO FILL SCREEN WITH BARS.
 	jsr drawinitscreen
+	;jsr drawinitscreen_kernal
 
 	rts
 
@@ -178,12 +179,26 @@ main:
 ; Draw init screen initializes the initial screen presentation
 ; ************************************************************
 drawinitscreen:
-	ldx #$28
+	ldx #$0
 
 drawinitscreen_loop:
-	lda #65
+	lda #$01						; Char screen code for A
+	sta $0400,x
+	inx
+	cpx #$28
+	bne drawinitscreen_loop
+
+	rts
+
+; ************************************************************
+; Draw init screen using kernal
+; ************************************************************
+drawinitscreen_kernal:
+	ldx #$28
+
+drawinitscreen_kernal_loop:
+	lda #$65					; Char screen code for A
 	jsr chrout
-	dex
 	bne drawinitscreen_loop
 
 	rts
