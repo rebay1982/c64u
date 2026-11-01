@@ -26,6 +26,8 @@ mvdest = mvsrce+2              ; Move destination pointer (low-byte)
 
 lenptr = $0200                 ; Block length pointer.
 
+charscr = $0400                ; character screen buffer address
+
 ramcharcopy:
 ; Set CIA2 data direction register as outputs to select the correct bank
 	lda c2ddra
@@ -178,14 +180,16 @@ main:
 ; ************************************************************
 ; Draw init screen initializes the initial screen presentation
 ; ************************************************************
+scrwidth = $28                  ; Screen width: 40 tiles
+a_char = $01
 drawinitscreen:
 	ldx #$0
 
 drawinitscreen_loop:
-	lda #$01						; Char screen code for A
-	sta $0400,x
+	lda #a_char					; Char screen code for A
+	sta charscr,x
 	inx
-	cpx #$28
+	cpx #scrwidth
 	bne drawinitscreen_loop
 
 	rts
