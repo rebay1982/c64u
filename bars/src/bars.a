@@ -181,16 +181,25 @@ main:
 ; Draw init screen initializes the initial screen presentation
 ; ************************************************************
 scrwidth = $28                  ; Screen width: 40 tiles
+scrheight = $04                 ; Screen height: 04 tiles
 a_char = $01
 drawinitscreen:
+	ldy #$0
+
+drawinitscreen_loop_y:
 	ldx #$0
 
-drawinitscreen_loop:
+; Loop looks fine, but we're always redrawing the same line over and over. We never increase the base address which is charscr
+drawinitscreen_loop_x:
 	lda #a_char					; Char screen code for A
 	sta charscr,x
 	inx
 	cpx #scrwidth
-	bne drawinitscreen_loop
+	bne drawinitscreen_loop_x
+
+  iny
+	cpy #scrheight
+	bne drawinitscreen_loop_y 
 
 	rts
 
@@ -203,7 +212,7 @@ drawinitscreen_kernal:
 drawinitscreen_kernal_loop:
 	lda #$65					; Char screen code for A
 	jsr chrout
-	bne drawinitscreen_loop
+	bne drawinitscreen_kernal_loop
 
 	rts
 
