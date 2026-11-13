@@ -1,0 +1,391 @@
+* = $c000
+	jmp main
+
+; ***********
+; ramcharcopy
+; Makes a copy of the Char ROM to memory RAM location $3000
+; ***********
+r6510  = $0001                 ; R6510 I/O port register
+newadr = $3000                 ; RAM destination for character set
+chrbas = $d000                 ; Character ROM base address
+ciacre = $dc0e                 ; CIA 1 control register A
+c2ddra = $dd02                 ; CIA 2 data direction register A
+vmcsb  = $d018                 ; VIC-II memory control register
+hrscrlreg = $d016              ; VIC-II horizontal scroll register
+rastercnt = $d012              ; VIC-II raster counter register (lower 7 LSBs)
+chrout = $ffd2                 ; KERNAL character output routine
+clrscr = $e544                 ; KERNAL clear screen routine
+
+chara = newadr+$08             ; Character A position
+
+; basic pointers
+fretop = $0034                 ; Top of BASIC memopry (high-byte)
+memsiz = $0038                 ; Size of BASIC memory (high byte)
+
+tablen = $1000                 ; Length of the character set (4096 bytes)
+mvsrce = $fb                   ; Move source pointer (low-byte)
+mvdest = mvsrce+2              ; Move destination pointer (low-byte)
+
+lenptr = $0200                 ; Block length pointer.
+
+joy1reg = $DC01
+joy2reg = $DC00
+
+charscr  = $0770               ; character screen buffer address
+charptr  = $FB
+scroll_x = $FD
+tempvar  = $FE                 ; General purpose variable -- use with caution.
+
+ramcharcopy:
+; Set CIA2 data direction register as outputs to select the correct bank
+	lda c2ddra
+	ora #$03
+	sta c2ddra
+
+; For uppercase and graphics mode. Equivalent to BASIC PRINT CHR$(142)
+; Clear the screen. Equivalent to BASIC PRINT CHR$(147): Is its own routine specifically for this.
+	lda #142
+	jsr chrout
+	jsr clrscr
+
+; Reserve RAM $3000 -- Make sure BASIC doesn't use anything lower.
+	lda #$30
+	sta fretop
+	sta memsiz
+; Turn off keyboard interrupt timer
+	lda ciacre
+	and #$fe
+	sta ciacre
+
+; Switch I/O off, char ROM on
+	lda r6510
+	and #$fb
+	sta r6510
+
+; Set source pointer
+	lda #<chrbas
+	sta mvsrce
+	lda #>chrbas
+	sta mvsrce + 1
+
+; Set destination pointer
+	lda #<newadr
+	sta mvdest
+	lda #>newadr
+	sta mvdest + 1
+
+; Set block length
+	lda #<tablen
+	sta lenptr
+	lda #>tablen
+	sta lenptr + 1
+
+; Start block copy
+	ldy #0
+	ldx lenptr + 1
+	beq mvpart
+
+mvpage:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	bne mvpage
+	inc mvsrce + 1
+	inc mvdest + 1
+	dex
+	bne mvpage
+
+mvpart:
+	ldx lenptr
+	beq mvexit
+
+mvlast:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	dex
+	bne mvlast
+
+mvexit:
+; Switch I/O back in
+	lda r6510
+	ora #04
+	sta r6510
+; Turn keyboard back on
+	lda ciacre
+	ora #01
+	sta ciacre
+; Set VIC-II memory control register
+	lda vmcsb
+	and #$f0
+	ora #$0c
+	sta vmcsb
+
+ramcharcopy_end:
+	rts
+
+
+
+;********************************
+; Copy custom graphics into chars
+;********************************
+cpychar:
+	; Setup source and destination pointers
+	lda #<chartab
+	sta mvsrce
+	lda #>chartab
+	sta mvsrce + 1
+
+	lda #<chara
+	sta mvdest
+	lda #>chara
+	sta mvdest + 1
+
+	ldx #1                        ; Copy x characters, 8 bytes each
+cpychar_charloop:
+	ldy #0
+cpychar_byteloop:
+	lda (mvsrce),y
+	sta (mvdest),y
+	iny
+	cpy #8
+	bne cpychar_byteloop
+
+	; Advance source pointer by 8 to move to the next character.
+	clc
+	lda mvsrce
+	adc #8
+	sta mvsrce
+	bcc cpychar_nocarry1
+	inc mvsrce + 1
+
+cpychar_nocarry1:
+	clc
+	lda mvdest
+	adc #8
+	sta mvdest
+	bcc cpychar_nocarry2
+	inc mvdest + 1
+
+cpychar_nocarry2:
+	dex
+	bne cpychar_charloop
+
+cpychar_end:
+	rts
+
+
+
+; ********************************
+; Setup Horizontal Scroll register
+; ********************************
+setuphscroll:
+  lda hrscrlreg
+  and #$F0
+	sta hrscrlreg
+
+	lda #$00
+	sta scroll_x
+
+	jsr scroll
+
+	rts
+
+
+
+; ******************
+; Main program entry
+; ******************
+main:
+	jsr ramcharcopy
+	jsr cpychar
+	jsr setuphscroll
+	jsr drawinitscreen
+
+main_loop:
+	jsr wait
+	jsr checkinput
+
+	jmp main_loop
+
+	rts
+
+
+
+; ************************************************************
+; Draw init screen initializes the initial screen presentation
+; ************************************************************
+scrwidth = $28                  ; Screen width: 40 tiles
+scrheight = $03                 ; Screen height: 04 tiles
+a_char = $01
+drawinitscreen:
+	; Setup character screen memory pointer
+	lda #<charscr
+	sta charptr
+	lda #>charscr
+	sta charptr+1
+
+	; Setup screen skip
+	lda #$03
+	sta tempvar
+
+	ldx #scrheight
+
+drawinitscreen_loop_x:
+	ldy #$0
+
+drawinitscreen_loop_y:
+	tya
+	and tempvar
+	bne drawinitscreen_skip
+
+	lda #a_char					          ; Char screen code for A
+	sta (charptr),y
+
+drawinitscreen_skip:
+	iny
+	cpy #scrwidth
+	bne drawinitscreen_loop_y
+
+	; Update character pointer to the next row
+	clc
+	lda charptr
+	adc #scrwidth
+	sta charptr
+	lda charptr+1
+	adc #$0
+	sta charptr+1
+
+	; Adjus screen skip
+	clc
+	ror tempvar
+
+	dex
+	bne drawinitscreen_loop_x 
+
+	rts
+
+
+
+; ************************************
+; Wait routine -- waits for raster 255
+; ************************************
+waitframecnt = $02
+wait:
+  ; Use tempvar as the frame counter since we reset the value to 0 when entering the wait.
+	lda #$00
+	sta tempvar
+
+wait_frame:
+	lda rastercnt
+	cmp #$FF
+	beq wait_frame:
+
+wait_raster:
+	lda rastercnt
+	cmp #$FF
+	bne wait_raster
+
+	inc tempvar
+	lda tempvar
+	cmp #waitframecnt
+	bne wait_frame
+
+	rts
+
+
+
+; ***************************
+; Check Joystick input
+; ***************************
+joyleftmask = $04
+joyrightmask = $08
+checkinput:
+checkinput_right:
+	lda joy2reg
+	and #joyrightmask
+	bne checkinput_left
+
+	jsr scroll_right
+	jmp checkinput_end
+
+checkinput_left:
+	lda joy2reg
+	and #joyleftmask
+	bne checkinput_end
+
+	jsr scroll_left
+	
+checkinput_end:
+	rts
+
+
+
+; ***************************
+; Scroll (fine) horizontally
+; ***************************
+scroll_right:
+	; Coarse scroll: if going right but scroll_x is already 7, coarse scroll right first.
+	lda scroll_x
+	cmp #$07
+	bne scroll_fine_right
+
+	jsr coarse_right
+
+scroll_fine_right:
+	inc scroll_x
+
+	jmp scroll
+
+scroll_left:
+	; Coarse scroll: if going left but scroll_x is already 0, coarse scroll left first.
+	lda scroll_x
+	cmp #$00
+	bne scroll_fine_left
+
+	jsr coarse_left
+
+scroll_fine_left:
+	dec scroll_x
+
+scroll:
+	lda scroll_x
+	and #$07
+	sta scroll_x
+
+	lda hrscrlreg
+	and #$F8             ; Preserve the 5 MSB
+	sta tempvar          ; Store in a temp variable
+	lda scroll_x         ; Load the scroll_x variable to A
+	ora tempvar          ; OR it with the temp masked hrscrlreg to set the 3 LSB
+	sta hrscrlreg        ; Store it back in the horizontal scroll register.
+
+	rts
+
+
+
+; ***************************
+; Scroll (coarse) horizontally
+; ***************************
+coarse_right:
+
+
+coarse_left:
+
+
+coarse:
+	rts
+
+;----------------------------
+; Block
+;----------------------------
+chartab:
+	; Block #0
+	!byte %11111111
+	!byte %10000001
+	!byte %10000001
+	!byte %10011001
+	!byte %10011001
+	!byte %10000001
+	!byte %10000001
+	!byte %11111111
