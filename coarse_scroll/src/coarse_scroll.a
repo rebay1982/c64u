@@ -364,16 +364,94 @@ scroll:
 
 
 
-; ***************************
+; *****************************
 ; Scroll (coarse) horizontally
-; ***************************
+; *****************************
+; charscr  = $0770               ; character screen buffer address
+; charptr  = $FB
+scroll_w = $27                  ; Screen width: 40 tiles
+;scrheight = $03                 ; Screen height: 04 tiles
+;a_char = $01
 coarse_right:
+;	; Setup character screen memory pointer
+;	lda #<charscr
+;	sta charptr
+;	lda #>charscr
+;	sta charptr+1
+;	
+;	; Store the character at the very beginning of the row.
+;
+;	ldy #$00
+;	lda (charptr),y
+;	sta tempvar
+;	iny
+;
+;	; for the two top rows, save the "bumped" character (char 0)
+;	ldx #scroll_w
+;
+;coarse_right_loop:
+;	ldy #$01
+;	lda (charptr),y
+;	dey
+;	sta (charptr),y
+;
+;	; Update character pointer to the next row
+;	clc
+;	lda charptr
+;	adc #$01
+;	sta charptr
+;	lda charptr+1
+;	adc #$0
+;	sta charptr+1
+;
+;	dex
+;	bne coarse_right_loop
+;	
+;	ldy #scroll_w
+;	lda tempvar
+;	sta (charptr),y
+
+	jmp coarse
+
+
+
+
+
 
 
 coarse_left:
+	; Setup character screen memory pointer
+	lda #<charscr
+	sta charptr
+	lda #>charscr
+	sta charptr+1
+	
+	ldy #$00
+	ldx #$02
 
+;coarse_left_loop_x:
+	lda (charptr),y
+	sta tempvar
+
+coarse_left_loop_y:
+	iny	
+	lda (charptr),y
+	dey
+	sta (charptr),y
+	iny
+
+	cpy #scroll_w
+	bne coarse_left_loop_y
+	
+	lda tempvar
+	sta (charptr),y
+
+;	iny
+;	dex
+;	bne coarse_left_loop_x
 
 coarse:
+
 	rts
 
 ;----------------------------
