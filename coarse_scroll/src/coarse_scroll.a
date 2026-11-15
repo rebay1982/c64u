@@ -394,9 +394,7 @@ coarse_right_loop_y:
 	beq coarse_right_end_row
 
 	cpy #$00
-	beq coarse_right_end_row
-
-	jmp coarse_right_loop_y
+	bne coarse_right_loop_y
 
 coarse_right_end_row:
 	lda tempvar
@@ -440,9 +438,7 @@ coarse_left_loop_y:
 	beq coarse_left_end_row
 
 	cpy #scroll_l_2x
-	beq coarse_left_end_row
-
-	jmp coarse_left_loop_y
+	bne coarse_left_loop_y
 
 coarse_left_end_row:
 	lda tempvar
